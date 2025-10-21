@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Railway Ticket Management</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/milligram/1.4.1/milligram.min.css" integrity="sha512-4I9l8kdFMvx6bMpiKFFitvolG/GpNZgbf+168Q5e0siJmq9hw3rroWAt4EvsC0BpvyOuk+qS0bkkCm1cW8V+5g==" crossorigin="anonymous" referrerpolicy="no-referrer" />
+    <style>
+        body { margin: 2rem; }
+        form { margin-bottom: 2rem; }
+        table { width: 100%; }
+        .error { color: #d9534f; }
+    </style>
+</head>
+<body>
+<h1>Railway Ticket Management</h1>
+
+<section>
+    <h2>Create Passenger</h2>
+    <form id="passenger-form">
+        <div class="row">
+            <div class="column">
+                <label for="firstName">First name</label>
+                <input id="firstName" name="firstName" required>
+            </div>
+            <div class="column">
+                <label for="lastName">Last name</label>
+                <input id="lastName" name="lastName" required>
+            </div>
+        </div>
+        <div class="row">
+            <div class="column">
+                <label for="age">Age</label>
+                <input id="age" name="age" type="number" min="0" required>
+            </div>
+            <div class="column">
+                <label for="balance">Balance</label>
+                <input id="balance" name="balance" type="number" min="0" step="0.01" required>
+            </div>
+        </div>
+        <button type="submit" class="button">Create passenger</button>
+        <span class="error" id="passenger-error"></span>
+    </form>
+</section>
+
+<section>
+    <h2>Create Carriage</h2>
+    <form id="carriage-form">
+        <div class="row">
+            <div class="column">
+                <label for="carriageName">Name</label>
+                <input id="carriageName" name="carriageName" required>
+            </div>
+            <div class="column">
+                <label for="capacity">Capacity</label>
+                <input id="capacity" name="capacity" type="number" min="1" required>
+            </div>
+            <div class="column">
+                <label for="basePrice">Base price</label>
+                <input id="basePrice" name="basePrice" type="number" min="0" step="0.01" required>
+            </div>
+        </div>
+        <button type="submit" class="button">Create carriage</button>
+        <span class="error" id="carriage-error"></span>
+    </form>
+</section>
+
+<section>
+    <h2>Passengers</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Type</th>
+            <th>Balance</th>
+            <th>Seat</th>
+            <th>Carriage</th>
+            <th>Buy ticket</th>
+        </tr>
+        </thead>
+        <tbody id="passenger-table"></tbody>
+    </table>
+</section>
+
+<section>
+    <h2>Carriages</h2>
+    <table>
+        <thead>
+        <tr>
+            <th>ID</th>
+            <th>Name</th>
+            <th>Capacity</th>
+            <th>Occupied</th>
+            <th>Base price</th>
+        </tr>
+        </thead>
+        <tbody id="carriage-table"></tbody>
+    </table>
+</section>
+
+<script>
+    const passengerForm = document.getElementById('passenger-form');
+    const carriageForm = document.getElementById('carriage-form');
+    const passengerTable = document.getElementById('passenger-table');
+    const carriageTable = document.getElementById('carriage-table');
+
+    const passengerError = document.getElementById('passenger-error');
+    const carriageError = document.getElementById('carriage-error');
+
+    async function fetchPassengers() {
+        const response = await fetch('/api/passengers');
+        const passengers = await response.json();
+        passengerTable.innerHTML = '';
+        passengers.forEach(passenger => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${passenger.id}</td>
+                <td>${passenger.firstName} ${passenger.lastName}</td>
+                <td>${passenger.type}</td>
+                <td>${passenger.balance}</td>
+                <td>${passenger.seatNumber ?? '-'}</td>
+                <td>${passenger.carriageId ?? '-'}</td>
+                <td>
+                    <select data-passenger-id="${passenger.id}" class="carriage-select"></select>
+                    <button class="button button-outline buy-button" data-passenger-id="${passenger.id}">Buy</button>
+                </td>`;
+            passengerTable.appendChild(row);
+        });
+        await populateCarriageSelectors();
+    }
+
+    async function fetchCarriages() {
+        const response = await fetch('/api/carriages');
+        const carriages = await response.json();
+        carriageTable.innerHTML = '';
+        carriages.forEach(carriage => {
+            const row = document.createElement('tr');
+            row.innerHTML = `
+                <td>${carriage.id}</td>
+                <td>${carriage.name}</td>
+                <td>${carriage.capacity}</td>
+                <td>${carriage.occupiedSeats}</td>
+                <td>${carriage.basePrice}</td>`;
+            carriageTable.appendChild(row);
+        });
+        return carriages;
+    }
+
+    async function populateCarriageSelectors() {
+        const carriages = await fetchCarriages();
+        document.querySelectorAll('.carriage-select').forEach(select => {
+            const currentPassenger = select.dataset.passengerId;
+            select.innerHTML = '<option value="">Choose carriage</option>';
+            carriages.forEach(carriage => {
+                const option = document.createElement('option');
+                option.value = carriage.id;
+                option.textContent = `${carriage.name} (#${carriage.id})`;
+                select.appendChild(option);
+            });
+        });
+    }
+
+    passengerForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        passengerError.textContent = '';
+        const data = Object.fromEntries(new FormData(passengerForm));
+        try {
+            await fetch('/api/passengers', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    firstName: data.firstName,
+                    lastName: data.lastName,
+                    age: Number(data.age),
+                    balance: Number(data.balance)
+                })
+            });
+            passengerForm.reset();
+            await fetchPassengers();
+        } catch (error) {
+            passengerError.textContent = 'Could not create passenger';
+        }
+    });
+
+    carriageForm.addEventListener('submit', async (event) => {
+        event.preventDefault();
+        carriageError.textContent = '';
+        const data = Object.fromEntries(new FormData(carriageForm));
+        try {
+            await fetch('/api/carriages', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    name: data.carriageName,
+                    capacity: Number(data.capacity),
+                    basePrice: Number(data.basePrice)
+                })
+            });
+            carriageForm.reset();
+            await fetchPassengers();
+        } catch (error) {
+            carriageError.textContent = 'Could not create carriage';
+        }
+    });
+
+    document.addEventListener('click', async (event) => {
+        if (event.target.matches('.buy-button')) {
+            const passengerId = event.target.dataset.passengerId;
+            const select = event.target.previousElementSibling;
+            const carriageId = select.value;
+            if (!carriageId) {
+                alert('Please choose a carriage');
+                return;
+            }
+            try {
+                const response = await fetch('/api/tickets/purchase', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ passengerId: Number(passengerId), carriageId: Number(carriageId) })
+                });
+                if (!response.ok) {
+                    const error = await response.json();
+                    alert(error.error ?? 'Could not purchase ticket');
+                }
+                await fetchPassengers();
+            } catch (error) {
+                alert('Unexpected error while buying ticket');
+            }
+        }
+    });
+
+    fetchPassengers();
+</script>
+</body>
+</html>
